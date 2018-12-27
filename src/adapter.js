@@ -1,82 +1,95 @@
+import ImageTools from "./imagetools";
+
+/**
+ * @private
+ */
 export default class Adapter {
-    constructor(loader, urlOrObject, t) {
-        this.loader = loader;
-        this.urlOrObject = urlOrObject;
-        this.t = t;
-    }
+  constructor(loader, options, t) {
+    this.loader = loader;
+    this.options = options;
+    this.t = t;
+  }
 
-    upload() {
-        return new Promise((resolve, reject) => {
-            this._initRequest();
-            this._initListeners(resolve, reject);
-            this._sendRequest();
-        });
-    }
+  upload() {
+    return new Promise((resolve, reject) => {
+      this._initRequest();
+      this._initListeners(resolve, reject);
+      this._sendRequest();
+    });
+  }
 
-    abort() {
-        if (this.xhr) {
-            this.xhr.abort();
+  abort() {
+    if (this.xhr) {
+      this.xhr.abort();
+    }
+  }
+
+  _initRequest() {
+    const xhr = (this.xhr = new XMLHttpRequest());
+
+    const url = this.options.url;
+    const headers = this.options.headers || null;
+
+    xhr.withCredentials = true;
+    xhr.open("POST", url, true);
+    if (headers !== null) {
+      for (let key in headers) {
+        if (typeof headers[key] === "function") {
+          xhr.setRequestHeader(key, headers[key]());
+        } else {
+          xhr.setRequestHeader(key, headers[key]);
         }
+      }
     }
 
-    _initRequest() {
-        const xhr = this.xhr = new XMLHttpRequest();
-		
-		let url = this.urlOrObject;
-		let headers = null;
-		if (typeof(this.urlOrObject) === 'object'){
-			url=this.urlOrObject.url;
-			headers = this.urlOrObject.headers;
-		}
+    xhr.responseType = "json";
+  }
 
-        xhr.withCredentials = true;
-        xhr.open('POST', url, true);
-		if (headers !== null){
-			for(let key in headers){
-				if (typeof(headers[key]) === 'function'){
-					xhr.setRequestHeader(key, headers[key]());
-				}else{
-					xhr.setRequestHeader(key, headers[key]);
-				}
-			}
-		}
-		
-        xhr.responseType = 'json';
-    }
+  _initListeners(resolve, reject) {
+    const xhr = this.xhr;
+    const loader = this.loader;
+    const t = this.t;
+    const genericError = t("Cannot upload file:") + ` ${loader.file.name}.`;
 
-    _initListeners(resolve, reject) {
-        const xhr = this.xhr;
-        const loader = this.loader;
-        const t = this.t;
-        const genericError = t('Cannot upload file:') + ` ${loader.file.name}.`;
+    xhr.addEventListener("error", () => reject(genericError));
+    xhr.addEventListener("abort", () => reject());
+    xhr.addEventListener("load", () => {
+      const response = xhr.response;
 
-        xhr.addEventListener('error', () => reject(genericError));
-        xhr.addEventListener('abort', () => reject());
-        xhr.addEventListener('load', () => {
-            const response = xhr.response;
+      if (!response || !response.uploaded) {
+        return reject(
+          response && response.error && response.error.message
+            ? response.error.message
+            : genericError
+        );
+      }
 
-            if (!response || !response.uploaded) {
-                return reject(response && response.error && response.error.message ? response.error.message : genericError);
-            }
+      resolve({
+        default: response.url
+      });
+    });
 
-            resolve({
-                default: response.url
-            });
-        });
-
-        if (xhr.upload) {
-            xhr.upload.addEventListener('progress', evt => {
-                if (evt.lengthComputable) {
-                    loader.uploadTotal = evt.total;
-                    loader.uploaded = evt.loaded;
-                }
-            });
+    if (xhr.upload) {
+      xhr.upload.addEventListener("progress", evt => {
+        if (evt.lengthComputable) {
+          loader.uploadTotal = evt.total;
+          loader.uploaded = evt.loaded;
         }
+      });
     }
+  }
 
-    _sendRequest() {
-        const data = new FormData();
-        data.append('upload', this.loader.file);
-        this.xhr.send(data);
+  _sendRequest() {
+    const data = new FormData();
+    let file = this.loader.file;
+
+    if (this.options.maxHeight > -1 || this.options.maxWidth > -1) {
+      file = new ImageTools().resize(file, {
+        width: this.options.maxWidth,
+        height: this.options.maxHeight
+      });
     }
+    data.append("upload", file);
+    this.xhr.send(data);
+  }
 }
