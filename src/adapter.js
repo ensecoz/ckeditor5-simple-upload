@@ -81,15 +81,20 @@ export default class Adapter {
 
   _sendRequest() {
     const data = new FormData();
-    let file = this.loader.file;
 
     if (this.options.maxHeight > -1 || this.options.maxWidth > -1) {
-      file = new ImageTools().resize(file, {
-        width: this.options.maxWidth,
-        height: this.options.maxHeight
-      });
+      new ImageTools()
+        .resize(this.loader.file, {
+          width: this.options.maxWidth,
+          height: this.options.maxHeight
+        })
+        .then(file => {
+          data.append("upload", file);
+          this.xhr.send(data);
+        });
+    } else {
+      data.append("upload", this.loader.file);
+      this.xhr.send(data);
     }
-    data.append("upload", file);
-    this.xhr.send(data);
   }
 }

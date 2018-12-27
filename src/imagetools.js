@@ -76,9 +76,20 @@ export default class ImageTools {
             height,
             "contain"
           );
-          if (hasToBlobSupport)
-            imageCanvas.toBlob(blob => resolve(blob), file.type);
-          else resolve(this.toBlob(imageCanvas, file.type));
+          if (hasToBlobSupport) {
+            imageCanvas.toBlob(blob => {
+              // convert to File
+              blob.name = file.name;
+              blob.lastModifiedDate = file.lastModifiedDate;
+              resolve(blob);
+            }, file.type);
+          } else {
+            const blob = this.toBlob(imageCanvas, file.type);
+            // convert to File
+            blob.name = file.name;
+            blob.lastModifiedDate = file.lastModifiedDate;
+            resolve(blob);
+          }
         });
       };
       this.loadImage(image, file);
